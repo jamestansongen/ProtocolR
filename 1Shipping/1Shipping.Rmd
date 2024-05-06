@@ -1,0 +1,241 @@
+---
+title: "1Shipping"
+date: "2024-05-06"
+---
+
+#tutorial source: #https://www.youtube.com/watch?v=k7xWK4rp5pY
+
+#step 1: install and load packages
+```{r}
+pacman::p_load(
+  tidyverse, #data visualisation
+  terra, #working with raster file
+  sf, #for polygons
+  giscoR, #for getting national or regional boundaries
+  ggnewscale #add a new scale which is not possible with ggplot2
+)
+```
+
+#step 2: download, unzip and load traffic data
+```{r}
+#https://datacatalog.worldbank.org/search/dataset/0037580/Global-Shipping-Traffic-Density
+#global/commercial/leisure/fishing/passenger/oil and gas
+#500m resolution
+
+#copy link and remove everything after zip then put in " "
+url <- "https://datacatalogfiles.worldbank.org/ddh-published/0037580/DR0045406/shipdensity_global.zip"
+destfile <- basename(url)
+
+#set timeout to more if takes longer to download
+options(timeout = 999)
+
+download.file(
+  url,
+  destfile = destfile,
+  mode = "wb"
+)
+
+#as file is bigger than 4gb, need to decompress
+source("https://raw.githubusercontent.com/milos-agathon/shipping-traffic-maps/main/R/decompress_file.r")
+
+
+decompress_file(
+  directory = getwd(), #get in working directly
+  file = destfile
+)
+
+#change extension to get the raster file
+#takes three arguments (pattern, file to change to and name)
+rastfile <- gsub(".zip",
+                 ".tif",
+                 destfile)
+
+#to load
+global_traffic <- terra::rast(rastfile)
+```
+
+
+#step 3: select the area of interest and crop
+```{r}
+#http://bboxfinder.com/#0.000000,0.000000,0.000000,0.000000
+#used to obtain coordinates of area of interest
+xmin <- -11.557617
+ymin <- 47.591346
+xmax <- 8.305664
+ymax <- 55.453941
+
+#sf::st_sfc to create simple geometry
+bounding_box <- sf::st_sfc(
+    sf::st_polygon(
+        list(
+            cbind(
+                c(xmin, xmax, xmax, xmin, xmin), #list of longitude coordinates
+                c(ymin, ymin, ymax, ymax, ymin) #list of latitude coordinates
+            )
+        )
+    ),
+    crs = 4326 #need to define CRS for R
+)
+
+shipping_traffic <- terra::crop(
+    x = global_traffic,
+    y = bounding_box,
+    snap = "in"
+)
+
+
+#ifel means ifelse so landmass is empty
+shipping_traffic_clean <- terra::ifel(
+    shipping_traffic == 0,
+    NA,
+    shipping_traffic
+)
+
+terra::plot(shipping_traffic_clean)
+```
+
+#step 4: get nightlight data
+```{r}
+#average dataset so does not take into account missing values
+#declare it as a string object
+u <- "https://eogdata.mines.edu/nighttime_light/annual/v22/2022/VNL_v22_npp-j01_2022_global_vcmslcfg_c202303062300.average_masked.dat.tif.gz"
+filename <- basename(u)
+
+download.file(
+    url = u,
+    destfile = filename,
+    mode = "wb"
+)
+
+path_to_nightlight <- list.files(
+    path = getwd(),
+    pattern = filename,
+    full.names = TRUE
+)
+
+#as working with a non-zip file in terra, need to add an extension 
+nightlight <- terra::rast(
+    paste0(
+        "/vsigzip/",
+        path_to_nightlight
+    )
+)
+
+#do not need to put NA values as zero as it is meant to appear dark
+nightlight_region <- terra::crop(
+    x = nightlight,
+    y = bounding_box,
+    snap = "in"
+)
+
+#resampling to match both
+nightlight_resampled <- terra::resample(
+    x = nightlight_region,
+    y = shipping_traffic_clean,
+    method = "bilinear"
+)
+
+terra::plot(nightlight_resampled)
+```
+
+
+#step 5: map
+```{r}
+nightlight_cols <- c("#061c2c", "#1f4762", "#FFD966", "white")
+#yellow and white is areas of higher nightlight pollution while blue is lower
+
+#256 colours, bias to give precedence to lighter colours
+#the higher the bias, the more space will be given to the lighter colour (i.e. yellow/white)
+nightlight_pal <- colorRampPalette(
+    nightlight_cols,
+    bias = 12
+)(256)
+
+#shipping traffic colours
+shipping_traffic_cols <- hcl.colors(
+    n = 5,
+    palette = "Blues"
+)
+
+#to inspect the colours
+scales::show_col(
+    shipping_traffic_cols,
+    ncol = 5,
+    labels = TRUE
+)
+
+#create shipping colour palette
+#use colours from 1 to 4
+#do not need to use bias unless you want to exaggerate something
+shipping_traffic_pal <- colorRampPalette(
+    shipping_traffic_cols[1:4]
+)(256)
+
+#convert raster into a dataframe for mapping
+nightlight_df <- as.data.frame(
+    nightlight_resampled,
+    xy = TRUE, #turn into coordinates
+    na.rm = TRUE #if there are missing values, remove them
+)
+
+#three columns of x, y and the value for nightime pollution
+names(nightlight_df)[3] <- "nightlight_value"
+
+#do the same thing
+shipping_traffic_df <- as.data.frame(
+    shipping_traffic_clean,
+    xy = TRUE,
+    na.rm = TRUE
+)
+
+#three columns of x, y, values
+head(nightlight_df)
+
+#three columns of x, y, shipdensity_global
+head(shipping_traffic_df)
+
+map <- ggplot() +
+    geom_raster(
+        data = nightlight_df,
+        aes(
+            x = x,
+            y = y,
+            fill = nightlight_value
+        )
+    ) +
+    scale_fill_gradientn( #nightlight values
+        colors = nightlight_pal
+    ) +
+    ggnewscale::new_scale_fill() + #normally you cannot add a new scale unless you use ggnewscale
+    geom_raster(
+        data = shipping_traffic_df,
+        aes(
+            x = x,
+            y = y,
+            fill = shipdensity_global
+        )
+    ) +
+       scale_fill_gradientn(
+        colors = shipping_traffic_pal
+    ) +
+    theme_void() + #base theme which gets rid of most other things
+    theme( #get rid of legend
+        legend.position = "none",
+        plot.margin = unit( #create a margin to get ride to get excess black or white
+            c(
+                t = -1, r = -1,
+                b = -1, l = -1
+            ), "cm"
+        )
+    )
+
+ggsave(
+    filename = "shipping_traffic.png",
+    plot = map,
+    width = 7,
+    height = 7
+)
+
+
+```
+

@@ -1,0 +1,79 @@
+---
+title: "2Overture"
+date: "2024-05-19"
+---
+
+#tutorial source = https://walker-data.com/posts/overture-buildings/
+
+#load libraries
+```{r}
+library(arrow) #read and write Parquet and Arrow files
+library(sf) #simple features
+library(dplyr) #data manipulation
+library(tigris) #download TIGER/Line shapefiles from US Census Bureau
+library(rdeck) #widget for R
+#remotes::install_github("qfes/rdeck") if not installed
+options(tigris_use_cache = TRUE) #set the cache directory to store shapefiles with tigris
+```
+
+#load dataset and data exploration
+```{r}
+#connect to building dataset with open_dataset()
+#choose appropriate S3 address
+buildings <- open_dataset('s3://overturemaps-us-west-2/release/2024-05-16-beta.0/theme=buildings?region=us-west-2')
+
+#check number of buildings available
+nrow(buildings)
+```
+
+#filter the buldings for bounding box of region of interest
+```{r}
+#select state and then city name
+sf_bbox <- counties(state = "CA", cb = TRUE, resolution = "20m") |> 
+  filter(NAME == "San Francisco") |> 
+  st_bbox() |> 
+  as.vector()
+
+#alternative is to put the coordinates
+#bbox <- c(longitude, latitude, longitude, latitude)
+#sydney_bbox <- c(150.787520, -34.088237, 151.422667, -33.643521)
+
+#select id, geometry and height to make dataset smaller
+#buildings with missing height values to have a value of 8m to show texture when visualise data
+sf_buildings <- buildings |>
+  filter(bbox$xmin > sf_bbox[1],
+         bbox$ymin > sf_bbox[2],
+         bbox$xmax < sf_bbox[3],
+         bbox$ymax < sf_bbox[4]) |>
+  select(id, geometry, height) |> 
+  collect() |>
+  st_as_sf(crs = 4326) |> 
+  mutate(height = ifelse(is.na(height), 8, height))
+
+```
+#set mapbox token
+```{r}
+#options(rdeck.mapbox_access_token = "replacewithyourtokenfrommapboxhere")
+```
+
+#visualise buildings in 3D based on values in the height column and color the buildings relative to their heights
+```{r}
+rdeck(map_style = mapbox_light(), 
+      initial_view_state = view_state(
+        center = c(-122.4657, 37.7548),
+        zoom = 11.3,
+        bearing = -60,
+        pitch = 76
+      )) |> 
+  add_polygon_layer(
+    data = sf_buildings, 
+    name = "San Francisco",
+    get_polygon = geometry, 
+    get_elevation = height, 
+    get_fill_color = scale_color_linear(
+      col = height,
+      palette = viridisLite::inferno(100, direction = -1)
+    ),
+    extruded = TRUE, 
+    opacity = 0.5)
+```

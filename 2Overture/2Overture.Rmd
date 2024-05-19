@@ -11,8 +11,8 @@ library(arrow) #read and write Parquet and Arrow files
 library(sf) #simple features
 library(dplyr) #data manipulation
 library(tigris) #download TIGER/Line shapefiles from US Census Bureau
-library(rdeck) #widget for R
 #remotes::install_github("qfes/rdeck") if not installed
+library(rdeck) #widget for R
 options(tigris_use_cache = TRUE) #set the cache directory to store shapefiles with tigris
 ```
 

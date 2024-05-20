@@ -2,7 +2,7 @@
 
 Hello, welcome to the repository that uses R for mapping and other projects!
 
-## **Entry 3: How to Create Amazing Precipitation Maps with R in 2D and 3D**
+## **Entry 3: Precipitation Maps 3D**
 
 ![Precipitation](3Precipitation/switzerland-average-precipitation.png)
 

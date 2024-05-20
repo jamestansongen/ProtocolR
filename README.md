@@ -2,7 +2,13 @@
 
 Hello, welcome to the repository that uses R for mapping and other projects!
 
-## **Entry 2: Getting and visualizing Overture Maps buildings data in R**
+## **Entry 3: How to Create Amazing Precipitation Maps with R in 2D and 3D**
+
+![Precipitation](3Precipitation/switzerland-average-precipitation.png)
+
+Tutorial Source: [How to Create Amazing Precipitation Maps with R in 2D and 3D](https://www.youtube.com/watch?v=9Ex-f66qe2w)
+
+## **Entry 2: Overture Maps buildings data**
 
 ![OvertureBuildings](2Overture/2Overture.png)
 

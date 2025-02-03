@@ -2,6 +2,12 @@
 
 Hello, welcome to the repository that uses R for mapping and other projects!
 
+## **Entry 4: REM using Lidar Data**
+
+![REM](4REM/3d-snake-river.png)
+
+Tutorial Source: [Unleash GIS Power: Create Jaw-Dropping REM Maps with Lidar Data in R!](https://www.youtube.com/watch?v=x8is770F7Og&ab_channel=MilosMakesMaps)
+
 ## **Entry 3: Precipitation Maps 3D**
 
 ![Precipitation](3Precipitation/switzerland-average-precipitation.png)
